@@ -1,2 +1,0 @@
-# pod 'SVGgh'
-pod 'SVGKit', :git => 'https://github.com/Akylas/SVGKit.git', :branch => '3.x'
