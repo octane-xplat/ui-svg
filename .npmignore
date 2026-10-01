@@ -1,0 +1,6 @@
+# Vendored into @octane-xplat/ui via files:["src"] — only the plugin
+# subset (src/) + LICENSE ship in the leaf tarball.
+*
+!src
+!src/**
+!LICENSE
