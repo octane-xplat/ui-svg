@@ -79,25 +79,29 @@ class SVGExternalFileResolver extends com.caverock.androidsvg.SVGExternalFileRes
 
 com.caverock.androidsvg.SVG.registerExternalFileResolver(new SVGExternalFileResolver())
 
-class MySVGView extends android.view.View {
-	private _svg: com.caverock.androidsvg.SVG | null = null
-	private renderOptions: com.caverock.androidsvg.RenderOptions
-	aspectRatio = 0
+type MySVGView = android.view.View & {
+	setSvg(svg: com.caverock.androidsvg.SVG | null): void
+	setRatio(ratio: com.caverock.androidsvg.PreserveAspectRatio): void
+}
 
-	constructor(context: any) {
-		super(context)
-		this.renderOptions = new com.caverock.androidsvg.RenderOptions()
-	}
-
-	override onDraw(canvas: android.graphics.Canvas): void {
+// android.view.View.extend (not class extends) — the runtime wires JS overrides
+// into the generated Java subclass; a plain ES subclass produces an unproxied
+// View whose onDraw never reaches JS.
+const MySVGViewCtor: new (context: any) => MySVGView = (android.view.View as any).extend({
+	_svg: null as com.caverock.androidsvg.SVG | null,
+	renderOptions: null as com.caverock.androidsvg.RenderOptions | null,
+	aspectRatio: 0,
+	onDraw(canvas: android.graphics.Canvas): void {
 		const svg = this._svg
 		if (!svg) {
 			return
 		}
+		if (!this.renderOptions) {
+			this.renderOptions = new com.caverock.androidsvg.RenderOptions()
+		}
 		this.renderOptions.viewPort(0, 0, this.getWidth(), this.getHeight())
 		svg.renderToCanvas(canvas, this.renderOptions)
-	}
-
+	},
 	setSvg(svg: com.caverock.androidsvg.SVG | null): void {
 		this._svg = svg
 		if (svg) {
@@ -105,19 +109,24 @@ class MySVGView extends android.view.View {
 			svg.setDocumentHeight('100%')
 		}
 		this.invalidate()
-	}
-
+	},
 	setRatio(ratio: com.caverock.androidsvg.PreserveAspectRatio): void {
+		if (!this.renderOptions) {
+			this.renderOptions = new com.caverock.androidsvg.RenderOptions()
+		}
 		this.renderOptions.preserveAspectRatio(ratio)
-	}
-
-	override onMeasure(widthMeasureSpec: number, heightMeasureSpec: number): void {
+	},
+	onMeasure(widthMeasureSpec: number, heightMeasureSpec: number): void {
 		const svg = this._svg
 		if (!svg) {
-			super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+			this.setMeasuredDimension(
+				android.view.View.getDefaultSize(this.getSuggestedMinimumWidth(), widthMeasureSpec),
+				android.view.View.getDefaultSize(this.getSuggestedMinimumHeight(), heightMeasureSpec),
+			)
 			return
 		}
-		// We don't call super because we measure native view with specific size.
+		// Measure the native view to the svg's aspect ratio instead of deferring
+		// to the base implementation.
 		let width = Utils.layout.getMeasureSpecSize(widthMeasureSpec)
 		const widthMode = Utils.layout.getMeasureSpecMode(widthMeasureSpec)
 		let height = Utils.layout.getMeasureSpecSize(heightMeasureSpec)
@@ -151,13 +160,16 @@ class MySVGView extends android.view.View {
 				}
 			}
 		}
-		super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-	}
-}
+		this.setMeasuredDimension(
+			Utils.layout.getMeasureSpecSize(widthMeasureSpec),
+			Utils.layout.getMeasureSpecSize(heightMeasureSpec),
+		)
+	},
+})
 
 export class SVGView extends SVGViewBase {
 	createNativeView() {
-		return new MySVGView(this._context)
+		return new MySVGViewCtor(this._context)
 	}
 
 	async handleSrc(src: any): Promise<void> {
