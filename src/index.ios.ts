@@ -92,7 +92,7 @@ export class SVGView extends SVGViewBase {
 					widthMeasureSpec = Utils.layout.makeMeasureSpec(height * ratio, Utils.layout.EXACTLY)
 				}
 				if (!finiteHeight) {
-					heightMeasureSpec = Utils.layout.makeMeasureSpec(width * ratio, Utils.layout.EXACTLY)
+					heightMeasureSpec = Utils.layout.makeMeasureSpec(width / ratio, Utils.layout.EXACTLY)
 				}
 			} else {
 				const viewRatio = width / (height || 1000000000000)
