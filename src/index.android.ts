@@ -95,6 +95,9 @@ const MySVGViewCtor: new (context: any) => MySVGView = (android.view.View as any
 	_svg: null as com.caverock.androidsvg.SVG | null,
 	renderOptions: null as com.caverock.androidsvg.RenderOptions | null,
 	aspectRatio: 0,
+	// SVG user units, captured in setSvg before the 100% overrides erase them.
+	_intrinsicWidth: 0,
+	_intrinsicHeight: 0,
 	onDraw(canvas: android.graphics.Canvas): void {
 		const svg = this._svg
 		if (!svg) {
@@ -108,6 +111,19 @@ const MySVGViewCtor: new (context: any) => MySVGView = (android.view.View as any
 	},
 	setSvg(svg: com.caverock.androidsvg.SVG | null): void {
 		this._svg = svg
+		// Read intrinsic size before the 100% overrides below replace it;
+		// getDocumentWidth/Height report -1 for absent or percentage dims.
+		const viewBox = svg?.getDocumentViewBox()
+		if (viewBox) {
+			this._intrinsicWidth = viewBox.width()
+			this._intrinsicHeight = viewBox.height()
+		} else if (svg && svg.getDocumentWidth() > 0 && svg.getDocumentHeight() > 0) {
+			this._intrinsicWidth = svg.getDocumentWidth()
+			this._intrinsicHeight = svg.getDocumentHeight()
+		} else {
+			this._intrinsicWidth = 0
+			this._intrinsicHeight = 0
+		}
 		if (svg) {
 			svg.setDocumentWidth('100%')
 			svg.setDocumentHeight('100%')
@@ -136,20 +152,20 @@ const MySVGViewCtor: new (context: any) => MySVGView = (android.view.View as any
 		let height = Utils.layout.getMeasureSpecSize(heightMeasureSpec)
 		const heightMode = Utils.layout.getMeasureSpecMode(heightMeasureSpec)
 
-		const image = svg.getDocumentViewBox()
 		const finiteWidth = widthMode === Utils.layout.EXACTLY
 		const finiteHeight = heightMode === Utils.layout.EXACTLY
-		if (image || this.aspectRatio > 0) {
-			const nativeWidth = image ? Utils.layout.toDevicePixels(image.width()) : 0
-			const nativeHeight = image ? Utils.layout.toDevicePixels(image.height()) : 0
-			const imgRatio = nativeWidth / nativeHeight
+		const nativeWidth = Utils.layout.toDevicePixels(this._intrinsicWidth)
+		const nativeHeight = Utils.layout.toDevicePixels(this._intrinsicHeight)
+		const hasIntrinsic = nativeWidth > 0 && nativeHeight > 0
+		if (hasIntrinsic || this.aspectRatio > 0) {
+			const imgRatio = hasIntrinsic ? nativeWidth / nativeHeight : 0
 			const ratio = this.aspectRatio || imgRatio
 			if (finiteWidth || finiteHeight) {
 				if (!finiteWidth) {
 					widthMeasureSpec = Utils.layout.makeMeasureSpec(height * ratio, Utils.layout.EXACTLY)
 				}
 				if (!finiteHeight) {
-					heightMeasureSpec = Utils.layout.makeMeasureSpec(width * ratio, Utils.layout.EXACTLY)
+					heightMeasureSpec = Utils.layout.makeMeasureSpec(width / ratio, Utils.layout.EXACTLY)
 				}
 			} else {
 				const viewRatio = width / (height || 1000000000000)
