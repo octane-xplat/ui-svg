@@ -2,7 +2,7 @@
 // CanvasSVG/ui-canvas dropped. Sources: index.ios.js upstream.
 /// <reference path="./typings/ios.d.ts" />
 /// <reference path="./typings/SVGKit.d.ts" />
-import { File, ImageAsset, Utils, knownFolders, path } from '@nativescript/core'
+import { CoreTypes, File, ImageAsset, Utils, knownFolders, path, visibilityProperty } from '@nativescript/core'
 import { SVGView as SVGViewBase, srcProperty, stretchProperty } from './index.common'
 
 function getUIImageScaleType(scaleType: string): number | null {
@@ -64,6 +64,33 @@ export class SVGView extends SVGViewBase {
 	_setNativeClipToBounds(): void {
 		// Always set clipsToBounds for images
 		this.nativeViewProtected.clipsToBounds = true
+	}
+
+	// UIKit drops the pending display of a view that sits inside a hidden or
+	// collapsed ancestor at the moment it would draw, and unhiding the ancestor
+	// does not re-run drawRect: — the layer stays without backing contents.
+	// Re-request display once the view has positive bounds and no contents.
+	private requestDisplayIfUndrawn(): void {
+		const view = this.nativeViewProtected as SVGKFastImageView | undefined
+		const size = view?.bounds?.size
+		if (!size || size.width <= 0 || size.height <= 0 || view.hidden) {
+			return
+		}
+		if (view.layer.contents == null) {
+			view.setNeedsDisplay()
+		}
+	}
+
+	onLayout(left: number, top: number, right: number, bottom: number): void {
+		super.onLayout(left, top, right, bottom)
+		this.requestDisplayIfUndrawn()
+	}
+
+	[visibilityProperty.setNative](value: CoreTypes.VisibilityType) {
+		super[visibilityProperty.setNative](value)
+		if (value === CoreTypes.Visibility.visible) {
+			this.requestDisplayIfUndrawn()
+		}
 	}
 
 	onMeasure(widthMeasureSpec: number, heightMeasureSpec: number): void {
