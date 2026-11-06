@@ -4,6 +4,33 @@
 /// <reference path="./typings/SVGKit.d.ts" />
 import { CoreTypes, File, ImageAsset, Utils, knownFolders, path, visibilityProperty } from '@nativescript/core'
 import { SVGView as SVGViewBase, srcProperty, stretchProperty } from './index.common'
+import { resolveSvgUse } from './svg-use'
+
+function imageFromMarkup(markup: string): SVGKImage | null {
+	// Expand <use> ourselves: SVGKit builds the referenced shape geometry but
+	// never applies the use element's own paint/transform attributes.
+	return SVGKImage.imageWithSource(SVGKSourceString.sourceFromContentsOfString(resolveSvgUse(markup)))
+}
+
+function imageFromFile(filePath: string): SVGKImage | null {
+	// Keep SVGKit's file source so relative references resolve against the
+	// file URL; switch to markup loading only when the document needs the
+	// <use> expansion above.
+	let markup: string | undefined
+	try {
+		markup = File.fromPath(filePath).readTextSync()
+	} catch {
+		markup = undefined
+	}
+	if (markup == null) {
+		return SVGKImage.imageWithContentsOfFile(filePath)
+	}
+	const resolved = resolveSvgUse(markup)
+	if (resolved === markup) {
+		return SVGKImage.imageWithContentsOfFile(filePath)
+	}
+	return SVGKImage.imageWithSource(SVGKSourceString.sourceFromContentsOfString(resolved))
+}
 
 function getUIImageScaleType(scaleType: string): number | null {
 	switch (scaleType) {
@@ -28,6 +55,16 @@ export function getSVGKImage(src: string | ImageAsset | File): SVGKImage | null 
 
 	let imagePath: any
 	if (src instanceof File) {
+		let markup: string | undefined
+		try {
+			markup = src.readTextSync()
+		} catch {
+			markup = undefined
+		}
+		const resolved = markup == null ? markup : resolveSvgUse(markup)
+		if (resolved != null && resolved !== markup) {
+			return SVGKImage.imageWithSource(SVGKSourceString.sourceFromContentsOfString(resolved))
+		}
 		return SVGKImage.alloc().initWithData(NSData.alloc().initWithContentsOfFile(src.path))
 	} else if (src instanceof ImageAsset) {
 		imagePath = src.ios
@@ -41,13 +78,13 @@ export function getSVGKImage(src: string | ImageAsset | File): SVGKImage | null 
 			return SVGKImage.imageNamed(resName)
 		} else if (imagePath.indexOf('~/') === 0) {
 			const strPath = path.join(knownFolders.currentApp().path, imagePath.replace('~/', ''))
-			return SVGKImage.imageWithContentsOfFile(strPath)
+			return imageFromFile(strPath)
 		} else if (imagePath.indexOf('/') === 0) {
-			return SVGKImage.imageWithContentsOfFile(imagePath)
+			return imageFromFile(imagePath)
 		}
 	}
 
-	return SVGKImage.imageWithSource(SVGKSourceString.sourceFromContentsOfString(imagePath))
+	return imageFromMarkup(imagePath)
 }
 
 export class SVGView extends SVGViewBase {
