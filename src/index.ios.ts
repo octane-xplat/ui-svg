@@ -5,6 +5,7 @@
 import { CoreTypes, File, ImageAsset, Utils, knownFolders, path, visibilityProperty } from '@nativescript/core'
 import { SVGView as SVGViewBase, srcProperty, stretchProperty } from './index.common'
 import { resolveSvgUse } from './svg-use'
+import { resolveSvgCurrentColor } from './svg-current-color.ios'
 
 function imageFromMarkup(markup: string): SVGKImage | null {
 	// Expand <use> ourselves: SVGKit builds the referenced shape geometry but
@@ -48,7 +49,7 @@ function getUIImageScaleType(scaleType: string): number | null {
 	return null
 }
 
-export function getSVGKImage(src: string | ImageAsset | File): SVGKImage | null {
+function decodeSVGKImage(src: string | ImageAsset | File): SVGKImage | null {
 	if (!src) {
 		return null
 	}
@@ -85,6 +86,10 @@ export function getSVGKImage(src: string | ImageAsset | File): SVGKImage | null 
 	}
 
 	return imageFromMarkup(imagePath)
+}
+
+export function getSVGKImage(src: string | ImageAsset | File): SVGKImage | null {
+	return resolveSvgCurrentColor(decodeSVGKImage(src))
 }
 
 export class SVGView extends SVGViewBase {
